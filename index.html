@@ -82,6 +82,11 @@
 
         // Initialize Firebase
         try {
+            // Check if firebase config is valid
+            if (Object.keys(firebaseConfig).length === 0) {
+                throw new Error("Firebase configuration is missing. This application requires a valid configuration to connect to the database.");
+            }
+
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
@@ -90,12 +95,12 @@
             if (initialAuthToken) {
                 signInWithCustomToken(auth, initialAuthToken).catch(error => {
                     console.error("Error signing in with custom token:", error);
-                    showError("Failed to authenticate. Please try again.");
+                    showError("Failed to authenticate with the provided token.");
                 });
             } else {
                 signInAnonymously(auth).catch(error => {
                     console.error("Error signing in anonymously:", error);
-                    showError("Failed to authenticate. Please try again.");
+                    showError("Failed to authenticate anonymously. Please try again.");
                 });
             }
         } catch (e) {
