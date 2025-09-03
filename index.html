@@ -59,7 +59,21 @@
 
         // Global variables provided by the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        // PASTE YOUR FIREBASE CONFIG HERE:
+        // const firebaseConfig = {
+        //   apiKey: "YOUR_API_KEY",
+        //   authDomain: "YOUR_AUTH_DOMAIN",
+        //   projectId: "YOUR_PROJECT_ID",
+        //   storageBucket: "YOUR_STORAGE_BUCKET",
+        //   messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        //   appId: "YOUR_APP_ID"
+        // };
+        
+        // This line uses the config from the Canvas environment, which is currently failing.
+        // Once you've added your config above, you can remove or comment this line out.
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         let db = null;
@@ -226,3 +240,4 @@
 
 </body>
 </html>
+
