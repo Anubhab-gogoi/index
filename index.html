@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Scholar Location Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .scholar-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .scholar-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main Container -->
+    <div class="bg-white p-6 md:p-10 rounded-3xl shadow-2xl max-w-5xl w-full">
+        <header class="text-center mb-8">
+            <h1 class="text-5xl font-extrabold text-gray-800 mb-2">Applied Photonics & Nanophotonics lab</h1>
+            <p class="text-2xl text-gray-600 mb-4">Tezpur university</p>
+            <h1 class="text-4xl font-extrabold text-gray-800 mb-2">Research Scholar Locations</h1>
+            <p class="text-gray-500 text-lg">See the current whereabouts of the team in real-time.</p>
+        </header>
+
+        <!-- Loading & Error Messages -->
+        <div id="loading" class="text-center py-10">
+            <div class="animate-spin rounded-full h-12 w-12 border-4 border-gray-400 border-t-transparent mx-auto mb-4"></div>
+            <p class="text-gray-500">Loading scholar data...</p>
+        </div>
+        <div id="error" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg" role="alert">
+            <p class="font-bold">Error</p>
+            <p id="error-message"></p>
+        </div>
+        
+        <!-- Scholars Grid -->
+        <div id="scholars-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Scholar cards will be rendered here by JavaScript -->
+        </div>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, updateDoc, setLogLevel, getDocs, query, where, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set Firebase log level for debugging
+        setLogLevel('debug');
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db = null;
+        let auth = null;
+
+        const scholarLocations = ["APN LAB-1", "APN LAB-2(MRL)", "LIBRARY", "CANTEEN", "OTHERS", "HOSTEL"];
+        const scholarNames = ["Biprav Chetry", "Chunuranjan Dutta", "Nituraj Changmai", "Suchibrata Saikia", "Takio Yagin", "Anubhab Parashar Gogoi"];
+        
+        const loadingEl = document.getElementById('loading');
+        const errorEl = document.getElementById('error');
+        const errorMessageEl = document.getElementById('error-message');
+        const scholarsGridEl = document.getElementById('scholars-grid');
+
+        // Helper function to display errors
+        function showError(message) {
+            errorMessageEl.textContent = message;
+            errorEl.classList.remove('hidden');
+            loadingEl.classList.add('hidden');
+        }
+
+        // Initialize Firebase
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // Sign in anonymously if no custom token is provided
+            if (initialAuthToken) {
+                signInWithCustomToken(auth, initialAuthToken).catch(error => {
+                    console.error("Error signing in with custom token:", error);
+                    showError("Failed to authenticate. Please try again.");
+                });
+            } else {
+                signInAnonymously(auth).catch(error => {
+                    console.error("Error signing in anonymously:", error);
+                    showError("Failed to authenticate. Please try again.");
+                });
+            }
+        } catch (e) {
+            console.error("Firebase initialization error:", e);
+            showError("Failed to initialize the application. Please check the configuration.");
+        }
+        
+        // This function updates the UI with the fetched scholar data
+        function renderScholars(scholars) {
+            scholarsGridEl.innerHTML = ''; // Clear previous content
+            if (scholars.length === 0) {
+                 scholarsGridEl.innerHTML = '<p class="text-center text-gray-500 col-span-full">No scholars found. Seeding initial data...</p>';
+            }
+
+            scholars.forEach(scholar => {
+                const card = document.createElement('div');
+                card.id = `card-${scholar.id}`;
+                card.className = "scholar-card bg-white p-6 rounded-2xl shadow-lg border border-gray-200 flex flex-col justify-between";
+                
+                const lastUpdatedTime = scholar.lastUpdated ? scholar.lastUpdated.toDate().toLocaleString() : 'N/A';
+
+                let locationButtonsHtml = scholarLocations.map(location => `
+                    <button data-location="${location}" 
+                            class="location-btn w-full text-center py-2 px-4 rounded-full font-medium text-sm transition-colors duration-200 
+                                   ${scholar.location === location ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}"
+                            >
+                        ${location}
+                    </button>
+                `).join('');
+
+                card.innerHTML = `
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900 mb-2">${scholar.name}</h2>
+                        <p class="text-gray-600 font-semibold text-lg mb-4">
+                            <span class="text-blue-600">Location:</span> ${scholar.location}
+                        </p>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <p class="text-sm text-gray-400 mb-2">Last updated: ${lastUpdatedTime}</p>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            ${locationButtonsHtml}
+                        </div>
+                    </div>
+                `;
+                scholarsGridEl.appendChild(card);
+            });
+            
+            // Attach event listeners to the new buttons
+            document.querySelectorAll('.location-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const newLocation = event.target.dataset.location;
+                    const scholarName = event.target.closest('.scholar-card').querySelector('h2').textContent;
+                    updateLocation(scholarName, newLocation);
+                });
+            });
+        }
+
+        // Function to update a scholar's location
+        async function updateLocation(name, location) {
+            if (!db) {
+                console.error("Database not initialized.");
+                return;
+            }
+
+            const scholarsCollection = collection(db, `artifacts/${appId}/public/data/scholars`);
+            
+            try {
+                // To update a specific scholar, we need to query for their document.
+                const q = query(scholarsCollection, where('name', '==', name));
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    const scholarDocRef = snapshot.docs[0].ref;
+                    await updateDoc(scholarDocRef, {
+                        location: location,
+                        lastUpdated: new Date()
+                    });
+                    console.log(`Updated location for ${name} to ${location}`);
+                } else {
+                    console.log(`Scholar not found, creating a new document for ${name}.`);
+                    // Fallback to seeding if the scholar document doesn't exist
+                    await addDoc(scholarsCollection, {
+                        name: name,
+                        location: location,
+                        lastUpdated: new Date()
+                    });
+                    console.log(`Created document for ${name} and set location to ${location}`);
+                }
+            } catch (e) {
+                console.error("Error updating document:", e);
+                showError("Failed to update location: " + e.message);
+            }
+        }
+        
+        // Listen for authentication state changes and fetch data
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                console.log("Authenticated as user:", user.uid);
+                loadingEl.classList.add('hidden');
+                
+                // Set up real-time listener for scholars data
+                const scholarsCollection = collection(db, `artifacts/${appId}/public/data/scholars`);
+                onSnapshot(scholarsCollection, (querySnapshot) => {
+                    const scholars = [];
+                    querySnapshot.forEach((doc) => {
+                        scholars.push({ id: doc.id, ...doc.data() });
+                    });
+                    renderScholars(scholars);
+                    if(scholars.length === 0 && scholarNames.length > 0) {
+                       scholarNames.forEach(name => updateLocation(name, "OTHERS"));
+                    }
+                }, (error) => {
+                    console.error("Error listening to collection:", error);
+                    showError("Failed to load data in real-time. " + error.message);
+                });
+                
+            } else {
+                console.log("No user is signed in.");
+            }
+        });
+
+    </script>
+
+</body>
+</html>
